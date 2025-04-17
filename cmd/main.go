@@ -13,18 +13,12 @@ import (
 
 func main() {
 	// Initialize the IMU fusion system
-	imuSystem, err := internal.NewIMUFusionSystem()
+	imuSystem, err := internal.NewIMUFusionSystem(4)
 	if err != nil {
 		log.Fatalf("Failed to initialize IMU fusion system: %v", err)
 	}
 
-	// Start data acquisition
-	err = imuSystem.StartDataAcquisition()
-	if err != nil {
-		log.Fatalf("Failed to start data acquisition: %v", err)
-	}
-
 	// Process IMU data in real-time
 	fmt.Println("IMU Fusion System is running...")
-	imuSystem.ProcessData()
+	imuSystem.Start()
 }
