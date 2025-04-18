@@ -72,6 +72,7 @@ func isInsideAll(p Vec2, centers []Vec2, radii []float64) bool {
 }
 
 // AllCirclesIntersectAtPoint checks if there exists a point p such that all circles (center, radius) contain p.
+// It finds candidate points from intersections and containment, returning a feasible point if found.
 // Returns (true, p) if such a point exists, else (false, zero).
 func AllCirclesIntersectAtPoint(centers []Vec2, radii []float64) (bool, Vec2) {
 	n := len(centers)
@@ -135,12 +136,6 @@ func AllCirclesIntersectAtPoint(centers []Vec2, radii []float64) (bool, Vec2) {
 		        if seen[key] { // Check if it's a unique point we counted
 		            centroid.X += p.X
 		            centroid.Y += p.Y
-		            // Mark as used for centroid calculation to avoid re-adding
-		            // TODO: Note: This simple approach assumes the map iteration order is consistent enough
-		            // or that adding the same point multiple times if it appeared multiple times
-		            // in the original list before deduplication is acceptable for centroid.
-		            // A cleaner way might be to store unique points in a separate slice.
-		            // Let's refine this: store unique points properly.
 		        }
             }
             // Correct way: Collect unique points first

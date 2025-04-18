@@ -42,6 +42,7 @@ func (da *DataAcquisition) Start() {
 						Acceleration:    [3]float64{0.0, 0.0, 0.0}, // Replace with actual data
 						AngularVelocity: [3]float64{0.0, 0.0, 0.0}, // Replace with actual data
 					}
+					// Synchronization logic is handled by the Synchronizer type
 					da.sync.AddData(data) // Send data to synchronizer
 				case <-da.stopChan:
 					return // Exit goroutine
