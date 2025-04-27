@@ -1,5 +1,8 @@
 # IMU Fusion System
 
+> [!IMPORTANT]
+> This project is an MVP and only implemented in 2D. Future work could include extending the algorithm to 3 or more dimensions.
+
 This project implements a robust and real-time Inertial Measurement Unit (IMU) fusion system designed to accurately estimate position using data from multiple IMUs arranged in a planar configuration. The system leverages geometric constraints and a real-time 2D point cloud to mitigate drift and noise inherent in IMU measurements.
 
 ## Table of Contents
