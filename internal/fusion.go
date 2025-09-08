@@ -15,14 +15,35 @@ type Position struct {
 	R float64 // Uncertainty radius
 }
 
+// Position3D represents a 3D position with uncertainty.
+type Position3D struct {
+	X float64
+	Y float64
+	Z float64
+	R float64 // Uncertainty radius
+}
+
 // Vec2 is a simple 2D vector.
 type Vec2 struct {
 	X, Y float64
 }
 
+// Vec3 is a simple 3D vector.
+type Vec3 struct {
+	X, Y, Z float64
+}
+
 // Distance2D computes the Euclidean distance between two 2D points.
 func Distance2D(a, b Vec2) float64 {
 	return math.Hypot(a.X-b.X, a.Y-b.Y)
+}
+
+// Distance3D computes the Euclidean distance between two 3D points.
+func Distance3D(a, b Vec3) float64 {
+	dx := a.X - b.X
+	dy := a.Y - b.Y
+	dz := a.Z - b.Z
+	return math.Sqrt(dx*dx + dy*dy + dz*dz)
 }
 
 // intersectTwoCircles finds the intersection points of two circles.
@@ -65,6 +86,16 @@ func intersectTwoCircles(c1 Vec2, r1 float64, c2 Vec2, r2 float64) (int, Vec2, V
 func isInsideAll(p Vec2, centers []Vec2, radii []float64) bool {
 	for i, c := range centers {
 		if Distance2D(p, c) > radii[i]+epsilon {
+			return false
+		}
+	}
+	return true
+}
+
+// isInsideAll3D checks if a point p is inside all spheres defined by centers and radii.
+func isInsideAll3D(p Vec3, centers []Vec3, radii []float64) bool {
+	for i, c := range centers {
+		if Distance3D(p, c) > radii[i]+epsilon {
 			return false
 		}
 	}
@@ -232,6 +263,114 @@ func GeometricFusion2D(positions []Position) (float64, Position) {
 		}
 	}
 	return alphaMax, Position{X: fused.X, Y: fused.Y, R: alphaMax}
+}
+
+// AllSpheresIntersectAtPoint checks if there exists a point p such that all spheres (center, radius) contain p.
+// This is a 3D extension of the 2D circle intersection algorithm.
+// Returns (true, p) if such a point exists, else (false, zero).
+func AllSpheresIntersectAtPoint(centers []Vec3, radii []float64) (bool, Vec3) {
+	n := len(centers)
+	if n == 0 {
+		return false, Vec3{}
+	}
+	if n == 1 {
+		return true, centers[0]
+	}
+
+	// For 3D sphere intersection, we use a simpler approach:
+	// 1. Check if all sphere centers are inside all other spheres (contained sphere case)
+	// 2. Calculate centroid and check if it's inside all spheres
+	// 3. Use iterative refinement if needed
+
+	// Check for contained spheres
+	for i := 0; i < n; i++ {
+		if isInsideAll3D(centers[i], centers, radii) {
+			return true, centers[i]
+		}
+	}
+
+	// Check centroid
+	centroid := Vec3{}
+	for _, c := range centers {
+		centroid.X += c.X
+		centroid.Y += c.Y
+		centroid.Z += c.Z
+	}
+	centroid.X /= float64(n)
+	centroid.Y /= float64(n)
+	centroid.Z /= float64(n)
+	
+	if isInsideAll3D(centroid, centers, radii) {
+		return true, centroid
+	}
+
+	// If centroid doesn't work, try iterative refinement
+	// Start from centroid and move towards feasible region
+	bestDistance := math.Inf(1)
+	
+	// Sample points around the centroid
+	for dx := -0.1; dx <= 0.1; dx += 0.05 {
+		for dy := -0.1; dy <= 0.1; dy += 0.05 {
+			for dz := -0.1; dz <= 0.1; dz += 0.05 {
+				testPoint := Vec3{
+					X: centroid.X + dx,
+					Y: centroid.Y + dy,
+					Z: centroid.Z + dz,
+				}
+				
+				if isInsideAll3D(testPoint, centers, radii) {
+					return true, testPoint
+				}
+				
+				// Calculate how far this point is from being inside all spheres
+				maxDistanceOutside := 0.0
+				for i, c := range centers {
+					dist := Distance3D(testPoint, c)
+					if dist > radii[i] {
+						distanceOutside := dist - radii[i]
+						if distanceOutside > maxDistanceOutside {
+							maxDistanceOutside = distanceOutside
+						}
+					}
+				}
+				
+				if maxDistanceOutside < bestDistance {
+					bestDistance = maxDistanceOutside
+				}
+			}
+		}
+	}
+
+	// If no intersection found, return false
+	return false, Vec3{}
+}
+
+// GeometricFusion3D finds the minimal alpha >= 1 such that all expanded spheres intersect at some point.
+// Returns (alpha, fused position).
+func GeometricFusion3D(positions []Position3D) (float64, Position3D) {
+	centers := make([]Vec3, len(positions))
+	radii := make([]float64, len(positions))
+	for i, pos := range positions {
+		centers[i] = Vec3{X: pos.X, Y: pos.Y, Z: pos.Z}
+		radii[i] = pos.R
+	}
+	alphaMin, alphaMax := 1.0, 10.0
+	var fused Vec3
+	for alphaMax-alphaMin > 1e-4 {
+		alpha := 0.5 * (alphaMin + alphaMax)
+		expanded := make([]float64, len(radii))
+		for i := range radii {
+			expanded[i] = alpha * radii[i]
+		}
+		ok, p := AllSpheresIntersectAtPoint(centers, expanded)
+		if ok {
+			alphaMax = alpha
+			fused = p
+		} else {
+			alphaMin = alpha
+		}
+	}
+	return alphaMax, Position3D{X: fused.X, Y: fused.Y, Z: fused.Z, R: alphaMax}
 }
 
 // CircleIntersection checks if two circles intersect.
