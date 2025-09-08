@@ -5,6 +5,8 @@
 
 This project implements a robust and real-time Inertial Measurement Unit (IMU) fusion system designed to accurately estimate position using data from multiple IMUs arranged in a planar configuration. The system leverages geometric constraints and a real-time 2D point cloud to mitigate drift and noise inherent in IMU measurements.
 
+The name. A tongue-in-cheek name derived from the fundamentals of the algoithm, which is a circle-based algorthism designed to reduce jitter (jerking) in IMU timeseries data.
+
 ## Table of Contents
 
 - [Overview](#overview)
