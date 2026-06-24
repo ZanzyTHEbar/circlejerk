@@ -3,13 +3,12 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/ZanzyTHEbar/imu-fusion/internal"
 )
-
-// TODO: further optimize, add tests, or implement advanced spatial queries,
-// TODO: implement vectorization, SIMD, and goroutines with worker pools and batching
-// TODO: Optimize integration via Runge Kutta or a closed-form solution (is that even possible?)
 
 func main() {
 	// Initialize the IMU fusion system
@@ -21,4 +20,9 @@ func main() {
 	// Process IMU data in real-time
 	fmt.Println("IMU Fusion System is running...")
 	imuSystem.Start()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	<-stop
+	imuSystem.Stop()
 }

@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -15,8 +16,9 @@ type IMUFusionSystem struct {
 	velocities []Point   // per-IMU velocity state
 	lastTime   time.Time // last timestamp for integration
 	noiseLevel float64   // IMU noise level for uncertainty calculation
-	reference  []Point   // reference geometry for rigid transform
 	imuCount   int       // number of IMUs
+	stopChan   chan struct{}
+	stopWg     sync.WaitGroup
 }
 
 // NewIMUFusionSystem initializes the IMU fusion system.
@@ -33,13 +35,6 @@ func NewIMUFusionSystem(imuCount int) (*IMUFusionSystem, error) {
 	velocities := make([]Point, imuCount)
 	now := time.Now()
 	noise := 0.1 // default noise level
-	d := 1.0
-	ref := []Point{{0, 0}, {d, 0}, {d, d}, {0, d}} // Assuming 4 IMUs for ref geometry
-	if imuCount != 4 {
-		// TODO: Handle reference geometry for different imu counts
-		fmt.Println("Warning: Reference geometry is hardcoded for 4 IMUs.")
-	}
-
 	return &IMUFusionSystem{
 		acq:        acq,
 		sync:       sync,
@@ -49,30 +44,43 @@ func NewIMUFusionSystem(imuCount int) (*IMUFusionSystem, error) {
 		velocities: velocities,
 		lastTime:   now,
 		noiseLevel: noise,
-		reference:  ref,
 		imuCount:   imuCount,
+		stopChan:   make(chan struct{}),
 	}, nil
 }
 
 // Start starts the data acquisition and processing loop.
 func (sys *IMUFusionSystem) Start() {
-	sys.acq.Start()          // Start data collection goroutines
-	go sys.processDataLoop() // Start processing loop
+	sys.acq.Start()
+	sys.stopWg.Add(1)
+	go sys.processDataLoop()
 }
 
 // Stop stops the data acquisition and processing.
 func (sys *IMUFusionSystem) Stop() {
+	close(sys.stopChan)
 	sys.acq.Stop()
-	// TODO: Potentially add a way to signal processDataLoop to stop gracefully
+	sys.stopWg.Wait()
 }
 
 // processDataLoop runs the main fusion logic.
 func (sys *IMUFusionSystem) processDataLoop() {
+	defer sys.stopWg.Done()
 	for {
+		select {
+		case <-sys.stopChan:
+			return
+		default:
+		}
+
 		// Get aligned data frames from the synchronizer
 		alignedFrames := sys.sync.GetAlignedData(sys.imuCount)
 		if len(alignedFrames) == 0 {
-			time.Sleep(1 * time.Millisecond) // Wait if no aligned data
+			select {
+			case <-sys.stopChan:
+				return
+			case <-time.After(1 * time.Millisecond):
+			}
 			continue
 		}
 
@@ -123,21 +131,6 @@ func (sys *IMUFusionSystem) processDataLoop() {
 				posList[i] = Position{X: currentPositions[i].X, Y: currentPositions[i].Y, R: uncertainties[i]}
 			}
 			_, fused := GeometricFusion2D(posList)
-
-			// Rigid body transformation enforcement (using current positions and reference)
-			aligned, _, _ := Procrustes(currentPositions, sys.reference)
-
-			// FIXME: Apply the transformation derived from Procrustes (rotation, scale, translation)
-			// to the 'fused' point. The current implementation below doesn't use the Procrustes result effectively.
-			// It just averages the 'aligned' points which isn't the correct way to apply the constraint.
-			var avgAlignedX, avgAlignedY float64
-			for _, p := range aligned {
-				avgAlignedX += p.X
-				avgAlignedY += p.Y
-			}
-			// FIXME: Placeholder: Replace fused with average of aligned points for now
-			// fused.X = avgAlignedX / float64(len(aligned))
-			// fused.Y = avgAlignedY / float64(len(aligned))
 
 			// Point cloud refinement
 			neighbors := sys.cloud.RadiusSearch(fused.X, fused.Y, fused.R)

@@ -75,5 +75,3 @@ func TestProcrustes(t *testing.T) {
 		}
 	}
 }
-
-// TODO: Add tests for edge cases (e.g., colinear points, identical point sets, insufficient points)
