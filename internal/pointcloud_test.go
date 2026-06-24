@@ -119,7 +119,6 @@ func TestPointCloud_Clear(t *testing.T) {
 		t.Errorf("Expected PointCloud to be empty after Clear(), got %d points", len(pc.GetPoints()))
 	}
 
-	// Ensure tree is also cleared (implicitly tested by AddPoint rebuilding it)
 	// Add a point after clearing to ensure it works
 	pc.AddPoint(3, 3)
 	if len(pc.GetPoints()) != 1 {
