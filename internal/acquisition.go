@@ -25,31 +25,28 @@ func NewDataAcquisition(imuCount int, sync *Synchronizer) *DataAcquisition {
 
 // Start simulates the collection of data from the IMUs and sends it to the Synchronizer.
 func (da *DataAcquisition) Start() {
-	da.stopWg.Add(da.imuCount)
-	for i := 0; i < da.imuCount; i++ {
-		go func(imuID int) {
-			defer da.stopWg.Done()
-			// FIXME: Remove this simulation and replace with actual IMU data acquisition
-			ticker := time.NewTicker(1 * time.Millisecond) // Simulate 1000Hz
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ticker.C:
-					// Simulate data acquisition
+	da.stopWg.Add(1)
+	go func() {
+		defer da.stopWg.Done()
+		ticker := time.NewTicker(1 * time.Millisecond) // Simulate 1000Hz frames.
+		defer ticker.Stop()
+		for {
+			select {
+			case ts := <-ticker.C:
+				for imuID := 0; imuID < da.imuCount; imuID++ {
 					data := IMUData{
 						IMUID:           imuID,
-						Timestamp:       time.Now(),                // Use precise timestamping if possible
-						Acceleration:    [3]float64{0.0, 0.0, 0.0}, // Replace with actual data
-						AngularVelocity: [3]float64{0.0, 0.0, 0.0}, // Replace with actual data
+						Timestamp:       ts,
+						Acceleration:    [3]float64{},
+						AngularVelocity: [3]float64{},
 					}
-					// Synchronization logic is handled by the Synchronizer type
-					da.sync.AddData(data) // Send data to synchronizer
-				case <-da.stopChan:
-					return // Exit goroutine
+					da.sync.AddData(data)
 				}
+			case <-da.stopChan:
+				return
 			}
-		}(i)
-	}
+		}
+	}()
 }
 
 // Stop signals the data acquisition goroutines to stop.
