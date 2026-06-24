@@ -70,7 +70,7 @@ func TestAllCirclesIntersectAtPoint(t *testing.T) {
 				{2, 0},
 				{1, 1.732}, // Equilateral triangle vertices
 			},
-			radii:     []float64{1.1, 1.1, 1.1},
+			radii:     []float64{1.2, 1.2, 1.2},
 			expectOk:  true,
 			expectPos: Vec2{1, 0.577}, // Centroid of the triangle
 		},

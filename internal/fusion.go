@@ -1,9 +1,7 @@
 package internal
 
 import (
-	"fmt"
 	"math"
-	"sort" // Added for sorting contained circles
 )
 
 const epsilon = 1e-9 // Small tolerance for floating-point comparisons
@@ -83,111 +81,51 @@ func AllCirclesIntersectAtPoint(centers []Vec2, radii []float64) (bool, Vec2) {
 		return true, centers[0]
 	}
 
-	// 1. Generate candidate points from pairwise intersections and immediately check if they are inside all circles
-	var validIntersectionPoints []Vec2
+	containedIndex := -1
+	for i := 0; i < n; i++ {
+		if isInsideAll(centers[i], centers, radii) && (containedIndex == -1 || radii[i] < radii[containedIndex]) {
+			containedIndex = i
+		}
+	}
+	if containedIndex != -1 {
+		return true, centers[containedIndex]
+	}
+
+	var candidates []Vec2
 	for i := 0; i < n; i++ {
 		for j := i + 1; j < n; j++ {
 			count, p1, p2 := intersectTwoCircles(centers[i], radii[i], centers[j], radii[j])
 			if count >= 1 {
-				if isInsideAll(p1, centers, radii) {
-					validIntersectionPoints = append(validIntersectionPoints, p1)
-				}
+				candidates = append(candidates, p1)
 			}
 			if count == 2 {
-				if isInsideAll(p2, centers, radii) {
-					validIntersectionPoints = append(validIntersectionPoints, p2)
-				}
+				candidates = append(candidates, p2)
 			}
 		}
 	}
 
-	// 2. Process valid boundary intersection points
-	if len(validIntersectionPoints) > 0 {
+	valid := make([]Vec2, 0, len(candidates))
+	for _, p := range candidates {
+		if !isInsideAll(p, centers, radii) || containsVec2(valid, p) {
+			continue
+		}
+		valid = append(valid, p)
+	}
+	if len(valid) == 1 {
+		return true, valid[0]
+	}
+	if len(valid) > 1 {
 		centroid := Vec2{}
-		seen := make(map[string]bool)
-		uniqueValidPointsCount := 0
-		var firstUniquePoint Vec2
-		firstPointSet := false
-
-		// Deduplicate and count unique points
-		for _, p := range validIntersectionPoints {
-			key := fmt.Sprintf("%.9f,%.9f", p.X, p.Y)
-			if !seen[key] {
-				seen[key] = true
-				uniqueValidPointsCount++
-				if !firstPointSet {
-					firstUniquePoint = p
-					firstPointSet = true
-				}
-			}
+		for _, p := range valid {
+			centroid.X += p.X
+			centroid.Y += p.Y
 		}
-
-		// If exactly one unique valid point, return it (handles tangent/3-circle intersection)
-		if uniqueValidPointsCount == 1 && firstPointSet {
-			return true, firstUniquePoint
+		centroid.X /= float64(len(valid))
+		centroid.Y /= float64(len(valid))
+		if isInsideAll(centroid, centers, radii) {
+			return true, centroid
 		}
-
-		// If multiple unique points, calculate and check centroid
-		if uniqueValidPointsCount > 1 {
-		    // Recalculate centroid only from unique points
-		    centroid = Vec2{}
-		    for _, p := range validIntersectionPoints {
-		        key := fmt.Sprintf("%.9f,%.9f", p.X, p.Y)
-		        if seen[key] { // Check if it's a unique point we counted
-		            centroid.X += p.X
-		            centroid.Y += p.Y
-		        }
-            }
-            // Correct way: Collect unique points first
-            uniquePoints := make([]Vec2, 0, uniqueValidPointsCount)
-            processedKeys := make(map[string]bool)
-            for _, p := range validIntersectionPoints {
-                key := fmt.Sprintf("%.9f,%.9f", p.X, p.Y)
-                if seen[key] && !processedKeys[key] {
-                    uniquePoints = append(uniquePoints, p)
-                    processedKeys[key] = true
-                }
-            }
-            // Calculate centroid from the actual unique points
-            centroid = Vec2{}
-            for _, p := range uniquePoints {
-                centroid.X += p.X
-                centroid.Y += p.Y
-            }
-			centroid.X /= float64(uniqueValidPointsCount)
-			centroid.Y /= float64(uniqueValidPointsCount)
-
-			// Check if the centroid is valid
-			if isInsideAll(centroid, centers, radii) {
-				return true, centroid
-			}
-			// If centroid invalid, but we had multiple points, fall back to the first unique one found
-			// This might happen if the intersection is an arc and the centroid falls outside.
-			if firstPointSet {
-			    return true, firstUniquePoint
-			}
-		}
-	}
-
-	// 3. If no valid boundary points, check for contained circles
-	type containedCircleInfo struct {
-		center Vec2
-		radius float64
-	}
-	var containedCircles []containedCircleInfo
-	for i := 0; i < n; i++ {
-		if isInsideAll(centers[i], centers, radii) {
-			containedCircles = append(containedCircles, containedCircleInfo{centers[i], radii[i]})
-		}
-	}
-
-	if len(containedCircles) > 0 {
-		// Sort by radius (ascending) to find the smallest contained circle
-		sort.Slice(containedCircles, func(i, j int) bool {
-			return containedCircles[i].radius < containedCircles[j].radius
-		})
-		// Return the center of the smallest circle whose center is inside all others
-		return true, containedCircles[0].center
+		return true, valid[0]
 	}
 
 	// 4. Fallback: Check the centroid of the original centers (for area intersections)
@@ -204,6 +142,15 @@ func AllCirclesIntersectAtPoint(centers []Vec2, radii []float64) (bool, Vec2) {
 
 	// 5. No intersection found
 	return false, Vec2{}
+}
+
+func containsVec2(points []Vec2, p Vec2) bool {
+	for _, q := range points {
+		if Distance2D(p, q) <= epsilon {
+			return true
+		}
+	}
+	return false
 }
 
 // GeometricFusion2D finds the minimal alpha >= 1 such that all expanded circles intersect at some point.
